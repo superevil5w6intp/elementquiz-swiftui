@@ -1,18 +1,19 @@
 import SwiftUI
 
-// 1. DATA MODEL
+// 1. DATA MODEL (The Blueprint)
+// This defines what information each "Element" will hold.
 struct Element: Identifiable {
-    let id = UUID()
+    let id = UUID() // Gives each element a unique ID so SwiftUI can tell them apart.
     let name: String
     let symbol: String
     let atomicNumber: Int
     let category: String
 }
 
-// 2. VIEW MODEL
+// 2. VIEW MODEL (The Data Manager)
+// Think of this as a "backpack" that carries all your app's data.
 class QuizViewModel: ObservableObject {
-    // @Published: A property wrapper that announces to any observing views 
-    // whenever this data changes. If you add more elements, the UI updates automatically.
+    // @Published: This tells the app, "If this list changes, update the screen immediately!"
     @Published var elements: [Element] = [
         Element(name: "Hydrogen", symbol: "H", atomicNumber: 1, category: "Nonmetal"),
         Element(name: "Helium", symbol: "He", atomicNumber: 2, category: "Noble Gas"),
@@ -22,19 +23,21 @@ class QuizViewModel: ObservableObject {
     ]
 }
 
-// 3. MAIN ENTRY POINT
+// 3. MAIN ENTRY POINT (The App Frame)
+// This sets up the main structure, like the tabs at the bottom.
 struct ElementQuizApp: View {
-    // @StateObject: Used to create and "own" an ObservableObject. 
-    // This ensures the data stays alive as long as the app is running.
+    // @StateObject: We create the "Backpack" (ViewModel) here and keep it alive.
     @StateObject private var vm = QuizViewModel()
     
     var body: some View {
         TabView {
+            // We pass the list of elements from our backpack to the study view.
             FlashcardView(elements: vm.elements)
                 .tabItem {
                     Label("Study", systemImage: "book.fill")
                 }
             
+            // We pass the same list to the quiz view.
             QuizView(elements: vm.elements)
                 .tabItem {
                     Label("Quiz", systemImage: "pencil.circle")
@@ -43,27 +46,30 @@ struct ElementQuizApp: View {
     }
 }
 
-// 4. FLASHCARD COMPONENT
+// 4. FLASHCARD COMPONENT (The Study Tool)
 struct FlashcardView: View {
     let elements: [Element]
     
-    // @State: This is for simple data that stays inside a single view.
-    // When isFlipped changes, SwiftUI re-draws this view only.
-    @State private var isFlipped = false
-    @State private var currentIndex = 0
+    // @State: Simple variables that only live inside THIS screen.
+    // When these change, SwiftUI automatically "refreshes" the UI.
+    @State private var isFlipped = false // Is the card showing the front or back?
+    @State private var currentIndex = 0  // Which element are we looking at?
     
     var body: some View {
         VStack(spacing: 30) {
             ZStack {
+                // The Card Shape
                 RoundedRectangle(cornerRadius: 25)
-                    .fill(isFlipped ? Color.blue : Color.white)
+                    .fill(isFlipped ? Color.blue : Color.white) // Change color based on flip state
                     .shadow(radius: 10)
                 
                 VStack {
                     if !isFlipped {
+                        // FRONT SIDE: Large Symbol
                         Text(elements[currentIndex].symbol)
                             .font(.system(size: 80, weight: .bold))
                     } else {
+                        // BACK SIDE: Name and Details
                         Text(elements[currentIndex].name).font(.largeTitle)
                         Text("Atomic #: \(elements[currentIndex].atomicNumber)")
                     }
@@ -71,32 +77,39 @@ struct FlashcardView: View {
                 .foregroundColor(isFlipped ? .white : .black)
             }
             .frame(width: 300, height: 400)
-            // 3D Effect: Uses the isFlipped @State to determine the angle
+            // 3D Flip Animation Logic
             .rotation3DEffect(.degrees(isFlipped ? 180 : 0), axis: (x: 0, y: 1, z: 0))
             .onTapGesture {
-                // withAnimation: Tells SwiftUI to animate the change from 0 to 180 degrees
+                // withAnimation makes the flip look smooth instead of instant.
                 withAnimation(.spring()) {
-                    isFlipped.toggle()
+                    isFlipped.toggle() // Switches true to false, or false to true.
                 }
             }
             
+            // Navigation Buttons
             HStack(spacing: 40) {
                 Button("Previous") {
-                    if currentIndex > 0 { currentIndex -= 1; isFlipped = false }
+                    if currentIndex > 0 { 
+                        currentIndex -= 1 
+                        isFlipped = false // Reset to front side for the new card
+                    }
                 }
-                .disabled(currentIndex == 0)
+                .disabled(currentIndex == 0) // Can't go back if it's the first card.
                 
                 Button("Next") {
-                    if currentIndex < elements.count - 1 { currentIndex += 1; isFlipped = false }
+                    if currentIndex < elements.count - 1 { 
+                        currentIndex += 1 
+                        isFlipped = false 
+                    }
                 }
-                .disabled(currentIndex == elements.count - 1)
+                .disabled(currentIndex == elements.count - 1) // Can't go forward if it's the last card.
             }
             .buttonStyle(.borderedProminent)
         }
     }
 }
 
-// 5. QUIZ COMPONENT
+// 5. QUIZ COMPONENT (The Testing Tool)
 struct QuizView: View {
     let elements: [Element]
     
@@ -111,14 +124,16 @@ struct QuizView: View {
             
             Spacer()
             
+            // Question Area
             Text("What is the symbol for")
             Text(elements[currentQuestionIndex].name)
                 .font(.system(size: 40, weight: .black))
             
             Spacer()
             
-            // LazyVGrid: A layout concept that organizes views into columns
+            // Multiple Choice Grid
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 20) {
+                // Shuffles the cards and picks 4 to show as options.
                 ForEach(elements.shuffled().prefix(4), id: \.id) { element in
                     Button(action: {
                         checkAnswer(element.symbol)
@@ -134,8 +149,7 @@ struct QuizView: View {
             }
             .padding()
         }
-        // .alert: A modifier that listens to the @State showingScore.
-        // When showingScore becomes true, the pop-up appears.
+        // Result Pop-up
         .alert("Quiz Finished!", isPresented: $showingScore) {
             Button("Restart") {
                 score = 0
@@ -146,19 +160,17 @@ struct QuizView: View {
         }
     }
     
+    // Logic to check if the user clicked the right symbol
     func checkAnswer(_ symbol: String) {
         if symbol == elements[currentQuestionIndex].symbol {
             score += 1
         }
         
+        // Move to the next question or finish the quiz
         if currentQuestionIndex < elements.count - 1 {
             currentQuestionIndex += 1
         } else {
             showingScore = true
         }
     }
-}
-
-#Preview {
-  ContentView()
 }
